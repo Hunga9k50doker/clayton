@@ -8,18 +8,17 @@ const user_agents = require("./config/userAgents");
 const settings = require("./config/config");
 const { sleep, loadData, getRandomNumber } = require("./utils");
 const { Worker, isMainThread, parentPort, workerData } = require("worker_threads");
-
-const baseURL = `https://tonclayton.fun/api/${settings.CGI}`;
+const { checkBaseUrl } = require("./checkAPI");
 
 class Clayton {
-  constructor(queryId, accountIndex, proxy) {
+  constructor(queryId, accountIndex, proxy, baseURL) {
     this.headers = {
       Accept: "application/json, text/plain, */*",
       "Accept-Encoding": "gzip, deflate, br",
       "Accept-Language": "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
       "Content-Type": "application/json",
       Origin: "https://tonclayton.fun",
-      Referer: "https://tonclayton.fun/?tgWebAppStartParam=1092680235",
+      Referer: "https://tonclayton.fun/",
       "Sec-Ch-Ua": '"Not/A)Brand";v="99", "Google Chrome";v="115", "Chromium";v="115"',
       "Sec-Ch-Ua-Mobile": "?0",
       "Sec-Ch-Ua-Platform": '"Windows"',
@@ -28,6 +27,7 @@ class Clayton {
       "Sec-Fetch-Site": "same-origin",
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     };
+    this.baseURL = baseURL;
     this.queryId = queryId;
     this.accountIndex = accountIndex;
     this.proxy = proxy;
@@ -136,7 +136,6 @@ class Clayton {
       default:
         logMessage = `${accountPrefix}${ipPrefix} ${msg}`.blue;
     }
-
     console.log(logMessage);
   }
 
@@ -165,7 +164,10 @@ class Clayton {
   }
 
   async makeRequest(url, method, data = {}) {
-    const headers = { ...this.headers, "Init-Data": this.queryId };
+    const headers = {
+      ...this.headers,
+      "Init-Data": this.queryId,
+    };
     const proxyAgent = new HttpsProxyAgent(this.proxy);
     let retries = 0,
       success = false;
@@ -183,8 +185,7 @@ class Clayton {
         success = true;
         return { success: true, data: response.data };
       } catch (error) {
-        console.log(data);
-        this.log(`Yêu cầu thất bại: ${url.split(`${settings.CGI || "api"}`)[1]} | ${error.message}, đang thử lại...`, "warning");
+        this.log(`Yêu cầu thất bại: ${url} | ${error.message} | đang thử lại...`, "warning");
         success = false;
         await sleep(settings.DELAY_BETWEEN_REQUESTS);
         return { success: false, error: error.message };
@@ -193,23 +194,23 @@ class Clayton {
   }
 
   async login() {
-    return this.makeRequest(`${baseURL}/user/authorization`, "post");
+    return this.makeRequest(`${this.baseURL}/user/authorization`, "post");
   }
 
   async dailyClaim() {
-    return this.makeRequest(`${baseURL}/user/daily-claim`, "post");
+    return this.makeRequest(`${this.baseURL}/user/daily-claim`, "post");
   }
 
   async getPartnerTasks() {
-    return this.makeRequest(`${baseURL}/tasks/partner-tasks`, "get");
+    return this.makeRequest(`${this.baseURL}/tasks/partner-tasks`, "get");
   }
 
   async completePartnerTask(taskId) {
-    return this.makeRequest(`${baseURL}/tasks/complete`, "post", { task_id: taskId });
+    return this.makeRequest(`${this.baseURL}/tasks/complete`, "post", { task_id: taskId });
   }
 
   async rewardPartnerTask(taskId) {
-    return this.makeRequest(`${baseURL}/tasks/claim`, "post", { task_id: taskId });
+    return this.makeRequest(`${this.baseURL}/tasks/claim`, "post", { task_id: taskId });
   }
 
   async handlePartnerTasks() {
@@ -258,15 +259,15 @@ class Clayton {
   }
 
   async getDailyTasks() {
-    return this.makeRequest(`${baseURL}/tasks/daily-tasks`, "get");
+    return this.makeRequest(`${this.baseURL}/tasks/daily-tasks`, "get");
   }
 
   async completeDailyTask(taskId) {
-    return this.makeRequest(`${baseURL}/tasks/complete`, "post", { task_id: taskId });
+    return this.makeRequest(`${this.baseURL}/tasks/complete`, "post", { task_id: taskId });
   }
 
   async claimDailyTask(taskId) {
-    return this.makeRequest(`${baseURL}/tasks/claim`, "post", { task_id: taskId });
+    return this.makeRequest(`${this.baseURL}/tasks/claim`, "post", { task_id: taskId });
   }
 
   async handleDailyTasks() {
@@ -318,7 +319,7 @@ class Clayton {
   }
 
   async play2048() {
-    const startGameResult = await this.makeRequest(`${baseURL}/game/start`, "post");
+    const startGameResult = await this.makeRequest(`${this.baseURL}/game/start`, "post");
     if (!startGameResult.success || startGameResult.data.message !== "Game started successfully") {
       this.log("Không thể bắt đầu trò chơi 2048", "error");
       return;
@@ -334,14 +335,14 @@ class Clayton {
     for (const milestone of allMilestones) {
       if (Date.now() >= gameEndTime) break;
       await new Promise((resolve) => setTimeout(resolve, Math.random() * 10000 + 5000));
-      const saveGameResult = await this.makeRequest(`${baseURL}/game/save-tile`, "post", { maxTile: milestone, session_id });
+      const saveGameResult = await this.makeRequest(`${this.baseURL}/game/save-tile`, "post", { maxTile: milestone, session_id });
       if (saveGameResult.success && saveGameResult.data.message === "MaxTile saved successfully") {
         maxTile = milestone;
         this.log(`Đã đạt đến ô ${milestone}`, "success");
       }
     }
     await sleep(3);
-    const endGameResult = await this.makeRequest(`${baseURL}/game/over`, "post", { maxTile, multiplier: 1, session_id });
+    const endGameResult = await this.makeRequest(`${this.baseURL}/game/over`, "post", { maxTile, multiplier: 1, session_id });
     if (endGameResult.success) {
       const reward = endGameResult.data;
       this.log(`Trò chơi 2048 đã kết thúc thành công. Nhận ${reward.earn} CL và ${reward.xp_earned} XP`, "success");
@@ -353,7 +354,7 @@ class Clayton {
   }
 
   async playStack() {
-    const startGameResult = await this.makeRequest(`${baseURL}/stack/st-game`, "post");
+    const startGameResult = await this.makeRequest(`${this.baseURL}/stack/st-game`, "post");
     if (!startGameResult.success) {
       this.log("Không thể bắt đầu trò chơi Stack", "error");
       return;
@@ -368,7 +369,7 @@ class Clayton {
     while (Date.now() < gameEndTime && currentScoreIndex < scores.length) {
       const score = scores[currentScoreIndex];
       await sleep(5);
-      const updateResult = await this.makeRequest(`${baseURL}/stack/update-game`, "post", { score });
+      const updateResult = await this.makeRequest(`${this.baseURL}/stack/update-game`, "post", { score });
       if (updateResult.success) {
         this.log(`Cập nhật điểm Stack: ${score}`, "success");
         currentScoreIndex++;
@@ -381,7 +382,7 @@ class Clayton {
 
     const finalScore = scores[currentScoreIndex - 1] || 90;
 
-    const endGameResult = await this.makeRequest(`${baseURL}/stack/en-game`, "post", { score: finalScore, multiplier: 1 });
+    const endGameResult = await this.makeRequest(`${this.baseURL}/stack/en-game`, "post", { score: finalScore, multiplier: 1 });
     if (endGameResult.success) {
       const reward = endGameResult.data;
       this.log(`Trò chơi Stack đã kết thúc thành công. Nhận ${reward.earn} CL và ${reward.xp_earned} XP`, "success");
@@ -414,7 +415,7 @@ class Clayton {
 
   async connectwallet(wallet) {
     if (!wallet) return this.log("Không tìm thấy địa chỉ ví...bỏ qua", "warning");
-    const res = await this.makeRequest(`${baseURL}/user/wallet`, "post", { wallet });
+    const res = await this.makeRequest(`${this.baseURL}/user/wallet`, "post", { wallet });
     if (res?.data?.ok) {
       this.log(`Kết nối ví thành công: ${res.data.wallet}`.green);
     } else {
@@ -429,7 +430,7 @@ class Clayton {
 
     while (attempts < maxAttempts) {
       attempts++;
-      tasksResult = await this.makeRequest(`${baseURL}/tasks/default-tasks`, "get");
+      tasksResult = await this.makeRequest(`${this.baseURL}/tasks/default-tasks`, "get");
 
       if (tasksResult.success) {
         break;
@@ -448,13 +449,13 @@ class Clayton {
     const incompleteTasks = tasksResult.data.filter((task) => !task.is_completed && task.task_id !== 9);
 
     for (const task of incompleteTasks) {
-      const completeResult = await this.makeRequest(`${baseURL}/tasks/complete`, "post", { task_id: task.task_id });
+      const completeResult = await this.makeRequest(`${this.baseURL}/tasks/complete`, "post", { task_id: task.task_id });
 
       if (!completeResult.success) {
         continue;
       }
 
-      const claimResult = await this.makeRequest(`${baseURL}/tasks/claim`, "post", { task_id: task.task_id });
+      const claimResult = await this.makeRequest(`${this.baseURL}/tasks/claim`, "post", { task_id: task.task_id });
 
       if (claimResult.success) {
         const reward = claimResult.data;
@@ -474,7 +475,7 @@ class Clayton {
 
     while (attempts < maxAttempts) {
       attempts++;
-      SuperTasks = await this.makeRequest(`${baseURL}/tasks/super-tasks`, "get");
+      SuperTasks = await this.makeRequest(`${this.baseURL}/tasks/super-tasks`, "get");
       if (SuperTasks.success) {
         break;
       } else {
@@ -492,13 +493,13 @@ class Clayton {
     const incompleteTasks = SuperTasks.data.filter((task) => !task.is_completed);
 
     for (const task of incompleteTasks) {
-      const completeResult = await this.makeRequest(`${baseURL}/tasks/complete`, "post", { task_id: task.task_id });
+      const completeResult = await this.makeRequest(`${this.baseURL}/tasks/complete`, "post", { task_id: task.task_id });
 
       if (!completeResult.success) {
         continue;
       }
 
-      const claimResult = await this.makeRequest(`${baseURL}/tasks/claim`, "post", { task_id: task.task_id });
+      const claimResult = await this.makeRequest(`${this.baseURL}/tasks/claim`, "post", { task_id: task.task_id });
 
       if (claimResult.success) {
         const reward = claimResult.data;
@@ -601,8 +602,8 @@ class Clayton {
 }
 
 async function runWorker(workerData) {
-  const { queryId, accountIndex, proxy } = workerData;
-  const to = new Clayton(queryId, accountIndex, proxy);
+  const { queryId, accountIndex, proxy, hasIDAPI } = workerData;
+  const to = new Clayton(queryId, accountIndex, proxy, hasIDAPI);
   try {
     await Promise.race([to.runAccount(), new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10 * 60 * 1000))]);
     parentPort.postMessage({
@@ -628,7 +629,11 @@ async function main() {
   console.log("Tool được phát triển bởi nhóm tele Airdrop Hunter Siêu Tốc (https://t.me/airdrophuntersieutoc)".yellow);
   let maxThreads = settings.MAX_THEADS;
 
-  queryIds.map((val, i) => new Clayton(val, i, proxies[i]).createUserAgent());
+  const hasIDAPI = await checkBaseUrl();
+  // console.log(hasIDAPI);
+  if (!hasIDAPI) return console.log(`Không thể tìm thấy ID API, thử lại sau!`.red);
+  // process.exit();
+  queryIds.map((val, i) => new Clayton(val, i, proxies[i], hasIDAPI).createUserAgent());
 
   sleep(1);
   while (true) {
@@ -642,7 +647,7 @@ async function main() {
         const worker = new Worker(__filename, {
           workerData: {
             wallets,
-            // userAgents: agents,
+            hasIDAPI,
             queryId: queryIds[currentIndex],
             accountIndex: currentIndex,
             proxy: proxies[currentIndex % proxies.length],
@@ -655,12 +660,12 @@ async function main() {
               if (message.error) {
                 errors.push(`Tài khoản ${message.accountIndex}: ${message.error}`);
               }
-              //   console.log(`Tài khoản ${message.accountIndex}: ${message.error}`);
+              // console.log(`Tài khoản ${message.accountIndex}: ${message.error}`);
               resolve();
             });
             worker.on("error", (error) => {
               errors.push(`Lỗi worker cho tài khoản ${currentIndex}: ${error.message}`);
-              //   console.log(`Lỗi worker cho tài khoản ${currentIndex}: ${error.message}`);
+              // console.log(`Lỗi worker cho tài khoản ${currentIndex}: ${error.message}`);
               resolve();
             });
             worker.on("exit", (code) => {
@@ -685,7 +690,7 @@ async function main() {
         await new Promise((resolve) => setTimeout(resolve, 3000));
       }
     }
-    const to = new Clayton(null, 0, proxies[0]);
+    const to = new Clayton(null, 0, proxies[0], hasIDAPI);
     await sleep(3);
     console.log("Tool được phát triển bởi nhóm tele Airdrop Hunter Siêu Tốc (https://t.me/airdrophuntersieutoc)".yellow);
     console.log(`=============Hoàn thành tất cả tài khoản=============`.magenta);

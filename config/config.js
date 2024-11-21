@@ -6,7 +6,6 @@ const settings = {
   MAX_THEADS: process.env.MAX_THEADS ? parseInt(process.env.MAX_THEADS) : 10,
   SKIP_TASKS: process.env.SKIP_TASKS ? JSON.parse(process.env.SKIP_TASKS.replace(/'/g, '"')) : [],
   AUTO_TASK: process.env.AUTO_TASK ? process.env.AUTO_TASK.toLowerCase() === "true" : false,
-  CGI: process.env.CGI ? process.env.CGI : null,
   AUTO_PLAY_GAME: process.env.AUTO_PLAY_GAME ? process.env.AUTO_PLAY_GAME.toLowerCase() === "true" : false,
   AUTO_PLAY_GAME_STACK: process.env.AUTO_PLAY_GAME_STACK ? process.env.AUTO_PLAY_GAME_STACK.toLowerCase() === "true" : false,
   AUTO_PLAY_GAME_1204: process.env.AUTO_PLAY_GAME_1204 ? process.env.AUTO_PLAY_GAME_1204.toLowerCase() === "true" : false,
