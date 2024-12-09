@@ -1,8 +1,9 @@
 const axios = require("axios");
 const { log } = require("./utils"); // Adjust the path as necessary
+const settings = require("./config/config");
 
-const baseUrl = "https://tonclayton.fun/api";
-
+const baseUrl = settings.BASE_URL;
+const urlChecking = "https://raw.githubusercontent.com/Hunga9k50doker/APIs-checking/refs/heads/main/endpoints.json";
 async function getMainJsFormat(baseUrl) {
   try {
     const response = await axios.get(baseUrl);
@@ -24,45 +25,50 @@ async function getMainJsFormat(baseUrl) {
 async function checkBaseUrl() {
   const base_url = "https://tonclayton.fun/";
   const mainJsFormats = await getMainJsFormat(base_url);
-
-  if (mainJsFormats) {
-    for (const format of mainJsFormats) {
-      log(`Trying format: ${format}`);
-      const fullUrl = `https://tonclayton.fun${format}`;
-      const result = await fetchApiBaseId(fullUrl);
-      if (result && result.includes(baseUrl)) {
-        log("No change in api!", "success");
-        return result;
+  if (settings.ADVANCED_ANTI_DETECTION) {
+    if (mainJsFormats) {
+      for (const format of mainJsFormats) {
+        log(`Trying format: ${format}`);
+        // const fullUrl = `https://tonclayton.fun${format}`;
+        const result = await getBaseApi(urlChecking);
+        if (result && result?.endpoint?.includes(baseUrl)) {
+          log("No change in api!", "success");
+          return result;
+        }
+      }
+      return false;
+    } else {
+      log("Could not find any main.js format. Dumping page content for inspection:");
+      try {
+        const response = await axios.get(base_url);
+        console.log(response.data.slice(0, 1000)); // Print first 1000 characters of the page
+        return false;
+      } catch (error) {
+        log(`Error fetching the base URL for content dump: ${error.message}`, "warning");
+        return false;
       }
     }
-    return false;
   } else {
-    log("Could not find any main.js format. Dumping page content for inspection:");
-    try {
-      const response = await axios.get(base_url);
-      console.log(response.data.slice(0, 1000)); // Print first 1000 characters of the page
-      return false;
-    } catch (error) {
-      log(`Error fetching the base URL for content dump: ${error.message}`, "warning");
+    if (settings.API_ID) {
+      return `https://tonclayton.fun/api/${settings.API_ID}`;
+    } else {
+      log(`Cần cung cấp API_ID trong file .env`, "error");
       return false;
     }
   }
 }
 
-async function fetchApiBaseId(resFileJs) {
+async function getBaseApi(url) {
   try {
-    const response = await axios.get(resFileJs);
-    const jsContent = response.data;
-    // Tìm API base ID từ nội dung file JS
-    const match = jsContent.match(/Yge="([^"]+)"/);
-    if (match && match[1]) {
-      return `https://tonclayton.fun/api/${match[1]}`;
+    const response = await axios.get(url);
+    const content = response.data;
+    if (content?.clayton) {
+      return { endpoint: content.clayton, message: content.copyright };
     } else {
-      throw new Error("Không tìm thấy API Base ID trong file JS");
+      return null;
     }
-  } catch (error) {
-    log(`Lỗi khi lấy API Base ID: ${error.message}`, "error");
-    return false;
+  } catch (e) {
+    return null;
   }
 }
 

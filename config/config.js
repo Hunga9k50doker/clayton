@@ -10,6 +10,9 @@ const settings = {
   AUTO_PLAY_GAME_STACK: process.env.AUTO_PLAY_GAME_STACK ? process.env.AUTO_PLAY_GAME_STACK.toLowerCase() === "true" : false,
   AUTO_PLAY_GAME_1204: process.env.AUTO_PLAY_GAME_1204 ? process.env.AUTO_PLAY_GAME_1204.toLowerCase() === "true" : false,
   CONNECT_WALLET: process.env.CONNECT_WALLET ? process.env.CONNECT_WALLET.toLowerCase() === "true" : false,
+  ADVANCED_ANTI_DETECTION: process.env.ADVANCED_ANTI_DETECTION ? process.env.ADVANCED_ANTI_DETECTION.toLowerCase() === "true" : false,
+  API_ID: process.env.API_ID ? process.env.API_ID : null,
+  BASE_URL: process.env.BASE_URL ? process.env.BASE_URL : "https://tonclayton.fun/api",
   DELAY_BETWEEN_REQUESTS: process.env.DELAY_BETWEEN_REQUESTS && _isArray(process.env.DELAY_BETWEEN_REQUESTS) ? JSON.parse(process.env.DELAY_BETWEEN_REQUESTS) : [1, 5],
   DELAY_START_BOT: process.env.DELAY_START_BOT && _isArray(process.env.DELAY_START_BOT) ? JSON.parse(process.env.DELAY_START_BOT) : [1, 15],
 };

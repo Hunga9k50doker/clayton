@@ -126,11 +126,12 @@ function loadData(file) {
     const datas = fs.readFileSync(file, "utf8").replace(/\r/g, "").split("\n").filter(Boolean);
     if (datas?.length <= 0) {
       console.log(colors.red(`Không tìm thấy dữ liệu ${file}`));
-      process.exit();
+      return [];
     }
     return datas;
   } catch (error) {
     console.log(`Không tìm thấy file ${file}`.red);
+    return [];
   }
 }
 
@@ -139,22 +140,21 @@ async function saveData(data, filename) {
 }
 
 function log(msg, type = "info") {
-  const timestamp = new Date().toLocaleTimeString();
   switch (type) {
     case "success":
-      console.log(`[${timestamp}] [*] ${msg}`.green);
+      console.log(`[*] ${msg}`.green);
       break;
     case "custom":
-      console.log(`[${timestamp}] [*] ${msg}`.magenta);
+      console.log(`[*] ${msg}`.magenta);
       break;
     case "error":
-      console.log(`[${timestamp}] [!] ${msg}`.red);
+      console.log(`[!] ${msg}`.red);
       break;
     case "warning":
-      console.log(`[${timestamp}] [*] ${msg}`.yellow);
+      console.log(`[*] ${msg}`.yellow);
       break;
     default:
-      console.log(`[${timestamp}] [*] ${msg}`.blue);
+      console.log(`[*] ${msg}`.blue);
   }
 }
 

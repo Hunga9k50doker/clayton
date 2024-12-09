@@ -201,11 +201,15 @@ class Clayton {
     return this.makeRequest(`${this.baseURL}/user/daily-claim`, "post");
   }
 
+  async saveBalance() {
+    return this.makeRequest(`${this.baseURL}/user/save-user`, "post");
+  }
+
   async getPartnerTasks() {
     return this.makeRequest(`${this.baseURL}/tasks/partner-tasks`, "get");
   }
 
-  async completePartnerTask(taskId) {
+  async completeTask(taskId) {
     return this.makeRequest(`${this.baseURL}/tasks/complete`, "post", { task_id: taskId });
   }
 
@@ -227,7 +231,7 @@ class Clayton {
           let taskAttempts = 0;
           while (taskAttempts < maxAttempts) {
             taskAttempts++;
-            const completeResult = await this.completePartnerTask(task.task_id);
+            const completeResult = await this.completeTask(task.task_id);
             if (completeResult.success) {
               const rewardResult = await this.rewardPartnerTask(task.task_id);
               if (rewardResult.success) {
@@ -368,7 +372,7 @@ class Clayton {
 
     while (Date.now() < gameEndTime && currentScoreIndex < scores.length) {
       const score = scores[currentScoreIndex];
-      await sleep(5);
+      // await sleep(5);
       const updateResult = await this.makeRequest(`${this.baseURL}/stack/update-game`, "post", { score });
       if (updateResult.success) {
         this.log(`Cập nhật điểm Stack: ${score}`, "success");
@@ -380,7 +384,8 @@ class Clayton {
       await new Promise((resolve) => setTimeout(resolve, Math.random() * 10000 + 5000));
     }
 
-    const finalScore = scores[currentScoreIndex - 1] || 90;
+    const numberBonus = getRandomNumber(1, 9);
+    const finalScore = (scores[currentScoreIndex - 1] || 90) + numberBonus;
 
     const endGameResult = await this.makeRequest(`${this.baseURL}/stack/en-game`, "post", { score: finalScore, multiplier: 1 });
     if (endGameResult.success) {
@@ -558,6 +563,16 @@ class Clayton {
     const userInfo = loginResult.data.user;
     this.log(`CL: ${userInfo.tokens} CL | ${userInfo.daily_attempts} Ticket`, "info");
 
+    if (!userInfo.is_saved) {
+      this.log("Đang bảo vệ token...", "info");
+      const saveResult = await this.saveBalance();
+      if (saveResult.success) {
+        this.log("Đã bảo vệ token thành công!", "success");
+      } else {
+        this.log(`Không thể bảo vệ token: ${saveResult.error || "Lỗi không xác định"}`, "error");
+      }
+    }
+
     if (loginResult.data.dailyReward.can_claim_today) {
       this.log("Yêu cầu phần thưởng hàng ngày...", "info");
       const claimResult = await this.dailyClaim();
@@ -605,7 +620,7 @@ async function runWorker(workerData) {
   const { queryId, accountIndex, proxy, hasIDAPI } = workerData;
   const to = new Clayton(queryId, accountIndex, proxy, hasIDAPI);
   try {
-    await Promise.race([to.runAccount(), new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 10 * 60 * 1000))]);
+    await Promise.race([to.runAccount(), new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 24 * 60 * 60 * 1000))]);
     parentPort.postMessage({
       accountIndex,
     });
@@ -629,13 +644,13 @@ async function main() {
   console.log("Tool được phát triển bởi nhóm tele Airdrop Hunter Siêu Tốc (https://t.me/airdrophuntersieutoc)".yellow);
   let maxThreads = settings.MAX_THEADS;
 
-  const hasIDAPI = await checkBaseUrl();
-  // console.log(hasIDAPI);
+  const { endpoint: hasIDAPI, message } = await checkBaseUrl();
   if (!hasIDAPI) return console.log(`Không thể tìm thấy ID API, thử lại sau!`.red);
+  console.log(`${message}`.yellow);
   // process.exit();
   queryIds.map((val, i) => new Clayton(val, i, proxies[i], hasIDAPI).createUserAgent());
 
-  sleep(1);
+  await sleep(1);
   while (true) {
     let currentIndex = 0;
     const errors = [];
