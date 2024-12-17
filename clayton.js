@@ -33,6 +33,7 @@ class Clayton {
     this.skipTasks = settings.SKIP_TASKS;
     this.wallets = this.loadWallets();
     this.baseURL = baseURL;
+    this.multiplier = 1;
   }
 
   #load_session_data() {
@@ -144,9 +145,14 @@ class Clayton {
         success = true;
         return { success: true, data: response.data };
       } catch (error) {
-        this.log(`Yêu cầu thất bại: ${url} | ${error.message} | đang thử lại...`, "warning");
+        if (error.status === 429) {
+          this.log(`Quá nhiều yêu cầu chờ 2 ~ 3 phút để thử lại: ${url}...`, "warning");
+          await sleep([120, 180]);
+        } else {
+          this.log(`Yêu cầu thất bại: ${url} | ${error.message} | đang thử lại...`, "warning");
+          await sleep(settings.DELAY_BETWEEN_REQUESTS);
+        }
         success = false;
-        await sleep(settings.DELAY_BETWEEN_REQUESTS);
         return { success: false, error: error.message };
       }
     }
@@ -174,23 +180,28 @@ class Clayton {
 
   async handlePartnerTasks() {
     let fetchAttempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 3;
 
     while (fetchAttempts < maxAttempts) {
       fetchAttempts++;
       const tasksResult = await this.getPartnerTasks();
 
       if (tasksResult.success) {
-        const uncompletedTasks = tasksResult.data.filter((task) => !task.is_completed && !task.is_claimed);
+        const uncompletedTasks = tasksResult.data.filter((task) => !settings.SKIP_TASKS.includes(task.task_id) && !task.is_completed && !task.is_claimed);
         for (const task of uncompletedTasks) {
+          this.log(`Bắt đầu nhiệm vụ ${task.task_id} | ${task.task.title}...`);
+
           let taskAttempts = 0;
           while (taskAttempts < maxAttempts) {
             taskAttempts++;
+            await sleep(1);
+            console.log(task);
+            this.log(`Comleting ${task.task_id} | `);
             const completeResult = await this.completePartnerTask(task.task_id);
             if (completeResult.success) {
               const rewardResult = await this.rewardPartnerTask(task.task_id);
               if (rewardResult.success) {
-                this.log(`Làm nhiệm vụ ${task.task.title} thành công. Nhận được ${task.task.reward_tokens} CL`, "success");
+                this.log(`Làm nhiệm vụ ${task.task_id} | ${task.task.title} thành công. Nhận được ${task.task.reward_tokens} CL`, "success");
                 break;
               }
             } else {
@@ -233,17 +244,33 @@ class Clayton {
     return this.makeRequest(`${this.baseURL}/user/save-user`, "post");
   }
 
+  async checkOGPass() {
+    return this.makeRequest(`${this.baseURL}/pass/get`, "get");
+  }
+
+  async claimOGPass() {
+    return this.makeRequest(`${this.baseURL}/pass/claim`, "post");
+  }
+
   async handleDailyTasks() {
     let fetchAttempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 3;
 
     while (fetchAttempts < maxAttempts) {
       fetchAttempts++;
       const tasksResult = await this.getDailyTasks();
+      const skipStack = settings.AUTO_PLAY_GAME_1204;
+      const skip1204 = settings.AUTO_PLAY_GAME_STACK;
 
       if (tasksResult.success) {
-        const uncompletedTasks = tasksResult.data.filter((task) => !task.is_completed && !task.is_claimed);
+        const uncompletedTasks = tasksResult.data.filter((task) => {
+          const isTaskIdValid = skipStack ? task.task_id !== 4 : true;
+          const isTaskId1204Valid = skip1204 ? task.task_id !== 3 : true;
+          return !settings.SKIP_TASKS.includes(task.task_id) && !task.is_completed && !task.is_claimed && isTaskIdValid && isTaskId1204Valid;
+        });
         for (const task of uncompletedTasks) {
+          this.log(`Bắt đầu nhiệm vụ ${task.task_id} | ${task.task.title}...`);
+
           let taskAttempts = 0;
           while (taskAttempts < maxAttempts) {
             taskAttempts++;
@@ -306,7 +333,7 @@ class Clayton {
       }
     }
     await sleep(5);
-    const endGameResult = await this.makeRequest(`${this.baseURL}/game/over`, "post", { maxTile, multiplier: 1, session_id });
+    const endGameResult = await this.makeRequest(`${this.baseURL}/game/over`, "post", { maxTile, multiplier: this.multiplier, session_id });
     if (endGameResult.success) {
       const reward = endGameResult.data;
       this.log(`Trò chơi 2048 đã kết thúc thành công. Nhận ${reward.earn} CL và ${reward.xp_earned} XP`, "success");
@@ -346,7 +373,7 @@ class Clayton {
     const numberBonus = getRandomNumber(1, 9);
     const finalScore = (scores[currentScoreIndex - 1] || 90) + numberBonus;
 
-    const endGameResult = await this.makeRequest(`${this.baseURL}/stack/en-game`, "post", { score: finalScore, multiplier: 1 });
+    const endGameResult = await this.makeRequest(`${this.baseURL}/stack/en-game`, "post", { score: finalScore, multiplier: this.multiplier });
     if (endGameResult.success) {
       const reward = endGameResult.data;
       this.log(`Trò chơi Stack đã kết thúc thành công. Nhận ${reward.earn} CL và ${reward.xp_earned} XP`, "success");
@@ -390,7 +417,7 @@ class Clayton {
   async handleDefaultTasks() {
     let tasksResult;
     let attempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 3;
 
     while (attempts < maxAttempts) {
       attempts++;
@@ -410,9 +437,11 @@ class Clayton {
       return;
     }
 
-    const incompleteTasks = tasksResult.data.filter((task) => !task.is_completed && task.task_id !== 9);
+    const incompleteTasks = tasksResult.data.filter((task) => !settings.SKIP_TASKS.includes(task.task_id) && !task.is_completed);
 
     for (const task of incompleteTasks) {
+      this.log(`Bắt đầu nhiệm vụ ${task.task_id} | ${task.task.title}...`);
+
       const completeResult = await this.makeRequest(`${this.baseURL}/tasks/complete`, "post", { task_id: task.task_id });
 
       if (!completeResult.success) {
@@ -423,9 +452,9 @@ class Clayton {
 
       if (claimResult.success) {
         const reward = claimResult.data;
-        this.log(`Làm nhiệm vụ ${task.task.title} thành công. Phần thưởng ${reward.reward_tokens} CL | Balance: ${reward.total_tokens}`, "success");
+        this.log(`Làm nhiệm vụ ${task.task_id} | ${task.task.title} thành công. Phần thưởng ${reward.reward_tokens} CL | Balance: ${reward.total_tokens}`, "success");
       } else {
-        this.log(`Không thể nhận phần thưởng cho nhiệm vụ ${task.task.title}: ${claimResult.error || "Lỗi không xác định"}`, "error");
+        this.log(`Không thể nhận phần thưởng cho nhiệm vụ ${task.task_id} | ${task.task.title}: ${claimResult.error || "Lỗi không xác định"}`, "error");
       }
 
       await new Promise((resolve) => setTimeout(resolve, Math.random() * 5000 + 2000));
@@ -435,7 +464,7 @@ class Clayton {
   async handleSuperTasks() {
     let SuperTasks;
     let attempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 3;
 
     while (attempts < maxAttempts) {
       attempts++;
@@ -455,9 +484,11 @@ class Clayton {
       return;
     }
 
-    const incompleteTasks = SuperTasks.data.filter((task) => !task.is_completed);
+    const incompleteTasks = SuperTasks.data.filter((task) => !settings.SKIP_TASKS.includes(task.task_id) && !task.is_completed);
 
     for (const task of incompleteTasks) {
+      this.log(`Bắt đầu nhiệm vụ ${task.task_id} | ${task.task.title}...`);
+
       const completeResult = await this.makeRequest(`${this.baseURL}/tasks/complete`, "post", { task_id: task.task_id });
 
       if (!completeResult.success) {
@@ -502,7 +533,7 @@ class Clayton {
     }
 
     const userInfo = loginResult.data.user;
-    this.log(`CL: ${userInfo.tokens} CL | ${userInfo.daily_attempts} Ticket`, "info");
+    this.log(`CL: ${userInfo.tokens} CL | ${userInfo.daily_attempts} Ticket | OGPass: ${userInfo.has_og_pass.toString()}`, "info");
 
     if (!userInfo.is_saved) {
       this.log("Đang bảo vệ token...", "info");
@@ -513,6 +544,22 @@ class Clayton {
         this.log(`Không thể bảo vệ token: ${saveResult.error || "Lỗi không xác định"}`, "error");
       }
     }
+
+    if (!userInfo.has_og_pass) {
+      this.log("Đang kiểm tra OG PASS...", "info");
+      const ogRes = await this.checkOGPass();
+      if (ogRes.success && ogRes?.data?.can_claim_pass) {
+        const claimRess = await this.claimOGPass();
+        if (claimRess.success) {
+          this.log("Lấy OG PASS thành công!", "success");
+        }
+      } else {
+        this.log(`Chưa đủ điều kiện nhận OG Pass!`, "warning");
+      }
+    } else {
+      // this.multiplier = 1.25;
+    }
+
     // process.exit(0);
 
     if (loginResult.data.dailyReward.can_claim_today) {
@@ -534,6 +581,16 @@ class Clayton {
       }
     }
 
+    if (settings.AUTO_PLAY_GAME) {
+      await sleep(settings.DELAY_BETWEEN_GAME);
+      let tickets = userInfo.daily_attempts;
+      if (userInfo.daily_attempts > 0) {
+        await this.playGames(tickets);
+      } else {
+        this.log(`Không còn vé trò chơi`, "warning");
+      }
+    }
+
     if (settings.AUTO_TASK) {
       await sleep(3);
       await this.handleDefaultTasks();
@@ -543,16 +600,6 @@ class Clayton {
       await this.handleDailyTasks();
       await sleep(3);
       await this.handleSuperTasks();
-    }
-
-    if (settings.AUTO_PLAY_GAME) {
-      await sleep(3);
-      let tickets = userInfo.daily_attempts;
-      if (userInfo.daily_attempts > 0) {
-        await this.playGames(tickets);
-      } else {
-        this.log(`Không còn vé trò chơi`, "warning");
-      }
     }
   }
 }

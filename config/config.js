@@ -15,6 +15,7 @@ const settings = {
   BASE_URL: process.env.BASE_URL ? process.env.BASE_URL : "https://tonclayton.fun/api",
   DELAY_BETWEEN_REQUESTS: process.env.DELAY_BETWEEN_REQUESTS && _isArray(process.env.DELAY_BETWEEN_REQUESTS) ? JSON.parse(process.env.DELAY_BETWEEN_REQUESTS) : [1, 5],
   DELAY_START_BOT: process.env.DELAY_START_BOT && _isArray(process.env.DELAY_START_BOT) ? JSON.parse(process.env.DELAY_START_BOT) : [1, 15],
+  DELAY_BETWEEN_GAME: process.env.DELAY_BETWEEN_GAME && _isArray(process.env.DELAY_BETWEEN_GAME) ? JSON.parse(process.env.DELAY_START_BOT) : [1, 15],
 };
 
 module.exports = settings;
